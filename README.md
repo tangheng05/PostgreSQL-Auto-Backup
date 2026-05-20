@@ -32,30 +32,40 @@ nano /opt/pg_backup/backup.conf
 The main things to check:
 
 ```bash
-DB_NAME="serey_prod"          # your database name
-BACKUP_DIR="/root/db_backups" # where dumps are saved
-MAX_BACKUPS=7                 # how many to keep before deleting old ones
+DB_NAME="serey_prod"                # your database name
+BACKUP_DIR="/var/backups/pg_backups" # where dumps are saved
+MAX_BACKUPS=7                        # how many to keep before deleting old ones
 ```
 
-**3. Make the scripts executable**
+**3. Create the backup directory**
+
+The backup runs as the `postgres` unix user, so the directory needs to be owned by it. Using `/var/backups/pg_backups` is recommended — avoid putting it inside `/root/` since postgres cannot access that path.
+
+```bash
+mkdir -p /var/backups/pg_backups
+chown postgres:postgres /var/backups/pg_backups
+chmod 750 /var/backups/pg_backups
+```
+
+**4. Make the scripts executable**
 
 ```bash
 chmod +x /opt/pg_backup/*.sh
 ```
 
-**4. Do a dry run to make sure everything looks right**
+**5. Do a dry run to make sure everything looks right**
 
 ```bash
 sudo bash /opt/pg_backup/pg_backup.sh --dry-run --verbose
 ```
 
-**5. Run a real backup once to confirm it works**
+**6. Run a real backup once to confirm it works**
 
 ```bash
 sudo bash /opt/pg_backup/pg_backup.sh --verbose
 ```
 
-**6. Set up the automatic schedule**
+**7. Set up the automatic schedule**
 
 ```bash
 sudo bash /opt/pg_backup/setup_cron.sh
@@ -73,7 +83,7 @@ Pick a schedule from the menu (default is daily at 2:00 AM). The cron job gets w
 | `DB_USER` | `postgres` | PostgreSQL user |
 | `DB_HOST` | `localhost` | Database host |
 | `DB_PORT` | `5432` | Database port |
-| `BACKUP_DIR` | `/root/db_backups` | Where dump files are saved |
+| `BACKUP_DIR` | `/var/backups/pg_backups` | Where dump files are saved |
 | `MAX_BACKUPS` | `7` | Oldest backup deleted when this limit is hit. Set to `0` to keep everything. |
 | `VERIFY_BACKUP` | `true` | Checks the dump file is valid after every backup. Deletes it if corrupted. |
 | `DUMP_FORMAT` | `custom` | `custom` works with `pg_restore`. Use `plain` for a readable SQL file. |
