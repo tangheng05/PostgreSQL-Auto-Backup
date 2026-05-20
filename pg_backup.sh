@@ -179,8 +179,8 @@ preflight_checks() {
         ok=false
     fi
 
-    # Test DB connectivity
-    if ! PGPASSWORD="${PGPASSWORD:-}" psql \
+    # Test DB connectivity (run as the postgres unix user to match peer auth)
+    if ! sudo -u "$DB_USER" psql \
             -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
             -c "SELECT 1;" &>/dev/null; then
         error "Cannot connect to database '${DB_NAME}' at ${DB_HOST}:${DB_PORT} as '${DB_USER}'."
