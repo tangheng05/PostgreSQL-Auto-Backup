@@ -47,25 +47,77 @@ error()   { log "ERROR" "$@" >&2; }
 verbose() { $VERBOSE && log "DEBUG" "$@" || true; }
 
 # ── Notifications ─────────────────────────────────────────────────────────────
+# notify "OK"|"FAIL" "short message" ["filename" "size" "elapsed" "total_count" "total_size"]
 notify() {
     local status="$1"
     local message="$2"
+    local filename="${3:-}"
+    local size="${4:-}"
+    local elapsed="${5:-}"
+    local total_count="${6:-}"
+    local total_size="${7:-}"
+
+    # Build a file list of all current backups for the notification
+    local file_list=""
+    if [[ -n "$filename" ]]; then
+        local i=1
+        while IFS= read -r f; do
+            local f_size f_date
+            f_size=$(du -sh "$f" 2>/dev/null | cut -f1)
+            f_date=$(stat -c '%y' "$f" 2>/dev/null | cut -c1-16)
+            # Mark the newest backup
+            if [[ "$(basename "$f")" == "$filename" ]]; then
+                file_list+="  [new] $(basename "$f") — ${f_size} (${f_date})\n"
+            else
+                file_list+="  [${i}] $(basename "$f") — ${f_size} (${f_date})\n"
+            fi
+            (( i++ ))
+        done < <(ls -t "${BACKUP_DIR}/${BACKUP_PREFIX}_"*.${DUMP_EXT} 2>/dev/null)
+    fi
 
     if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
         local icon=":white_check_mark:"
         [[ "$status" == "FAIL" ]] && icon=":x:"
+        local text="${icon} *PG Backup ${status}* on \`$(hostname)\`\n${message}"
+        if [[ -n "$filename" ]]; then
+            text+="\n\n*New backup:* \`${filename}\`  |  *Size:* ${size}  |  *Time:* ${elapsed}s"
+            text+="\n*Stored backups (${total_count}/${MAX_BACKUPS}):*\n\`\`\`${file_list}\`\`\`"
+        fi
         curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' \
-            --data "{\"text\":\"${icon} *PG Backup ${status}*: ${message}\"}" \
+            --data "{\"text\":\"${text}\"}" \
             >/dev/null 2>&1 || warn "Slack notification failed"
     fi
 
     if [[ -n "${DISCORD_WEBHOOK_URL:-}" ]]; then
-        local color=3066993   # green
-        [[ "$status" == "FAIL" ]] && color=15158332  # red
+        local color=3066993
+        [[ "$status" == "FAIL" ]] && color=15158332
+
+        local fields=""
+        if [[ -n "$filename" ]]; then
+            fields+=$(printf '{"name":"File","value":"`%s`","inline":false},' "$filename")
+            fields+=$(printf '{"name":"Size","value":"%s","inline":true},' "$size")
+            fields+=$(printf '{"name":"Duration","value":"%ss","inline":true},' "$elapsed")
+            fields+=$(printf '{"name":"Stored","value":"%s / %s total","inline":true},' "$total_count" "$MAX_BACKUPS")
+            fields+=$(printf '{"name":"Total on disk","value":"%s","inline":true},' "$total_size")
+            if [[ -n "$file_list" ]]; then
+                local escaped_list
+                escaped_list=$(printf '%s' "$file_list" | sed 's/"/\\"/g' | tr '\n' '\n' | sed ':a;N;$!ba;s/\n/\\n/g')
+                fields+=$(printf '{"name":"All backups","value":"```%s```","inline":false},' "$escaped_list")
+            fi
+            # Remove trailing comma
+            fields="${fields%,}"
+        fi
+
         local payload
-        payload=$(printf '{"embeds":[{"title":"PG Backup %s","description":"%s","color":%d,"footer":{"text":"%s"}}]}' \
-            "$status" "$message" "$color" "$(hostname) • $(date '+%Y-%m-%d %H:%M:%S')")
+        if [[ -n "$fields" ]]; then
+            payload=$(printf '{"embeds":[{"title":"PG Backup %s","description":"%s","color":%d,"fields":[%s],"footer":{"text":"%s • %s"}}]}' \
+                "$status" "$message" "$color" "$fields" "$(hostname)" "$(date '+%Y-%m-%d %H:%M:%S')")
+        else
+            payload=$(printf '{"embeds":[{"title":"PG Backup %s","description":"%s","color":%d,"footer":{"text":"%s • %s"}}]}' \
+                "$status" "$message" "$color" "$(hostname)" "$(date '+%Y-%m-%d %H:%M:%S')")
+        fi
+
         curl -s -X POST "$DISCORD_WEBHOOK_URL" \
             -H 'Content-type: application/json' \
             --data "$payload" \
@@ -109,7 +161,7 @@ cleanup_on_failure() {
             warn "Removing incomplete backup: $BACKUP_FILEPATH"
             rm -f "$BACKUP_FILEPATH"
         fi
-        notify "FAIL" "Backup of '${DB_NAME}' on $(hostname) failed. Check ${LOG_FILE:-stdout}."
+        notify "FAIL" "Backup of '${DB_NAME}' on $(hostname) failed. Check ${LOG_FILE:-stdout}." "" "" "" "" ""
     fi
 }
 trap cleanup_on_failure EXIT
@@ -226,7 +278,12 @@ run_backup() {
         fi
     fi
 
-    notify "OK" "Backup of '${DB_NAME}' completed — ${size} in ${elapsed}s → $(basename "$BACKUP_FILEPATH")"
+    local total_count total_size
+    total_count=$(ls "${BACKUP_DIR}/${BACKUP_PREFIX}_"*.${DUMP_EXT} 2>/dev/null | wc -l)
+    total_size=$(du -sh "${BACKUP_DIR}" 2>/dev/null | cut -f1)
+
+    notify "OK" "Backup of \`${DB_NAME}\` completed successfully." \
+        "$(basename "$BACKUP_FILEPATH")" "$size" "$elapsed" "$total_count" "$total_size"
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────
