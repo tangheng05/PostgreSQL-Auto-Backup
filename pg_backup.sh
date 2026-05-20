@@ -60,6 +60,18 @@ notify() {
             >/dev/null 2>&1 || warn "Slack notification failed"
     fi
 
+    if [[ -n "${DISCORD_WEBHOOK_URL:-}" ]]; then
+        local color=3066993   # green
+        [[ "$status" == "FAIL" ]] && color=15158332  # red
+        local payload
+        payload=$(printf '{"embeds":[{"title":"PG Backup %s","description":"%s","color":%d,"footer":{"text":"%s"}}]}' \
+            "$status" "$message" "$color" "$(hostname) • $(date '+%Y-%m-%d %H:%M:%S')")
+        curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "$payload" \
+            >/dev/null 2>&1 || warn "Discord notification failed"
+    fi
+
     if [[ -n "${NOTIFY_EMAIL:-}" ]] && command -v mail &>/dev/null; then
         echo "$message" | mail -s "[PG Backup] $status - $(hostname)" "$NOTIFY_EMAIL" \
             >/dev/null 2>&1 || warn "Email notification failed"

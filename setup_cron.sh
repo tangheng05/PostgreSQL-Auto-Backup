@@ -36,26 +36,33 @@ confirm() {
 }
 
 pick_schedule() {
+    # Load default from config if available
+    local config_default=""
+    [[ -f "$CONFIG_FILE" ]] && config_default=$(grep '^DEFAULT_CRON_SCHEDULE=' "$CONFIG_FILE" | cut -d= -f2 | tr -d '"' || true)
+
     header "── Backup Schedule ──────────────────────────────────────"
-    echo "  1) Every 6 hours"
-    echo "  2) Every 12 hours"
-    echo "  3) Daily at a specific time"
-    echo "  4) Weekly on a specific day & time"
-    echo "  5) Custom cron expression"
+    [[ -n "$config_default" ]] && echo -e "  Config default: ${GREEN}${config_default}${RESET} (daily at 02:00 AM)"
+    echo "  1) Daily at 02:00 AM  ← recommended default"
+    echo "  2) Every 6 hours"
+    echo "  3) Every 12 hours"
+    echo "  4) Daily at a specific time"
+    echo "  5) Weekly on a specific day & time"
+    echo "  6) Custom cron expression"
     echo ""
-    read -rp "$(echo -e "${CYAN}Choose [1-5]: ${RESET}")" choice
+    read -rp "$(echo -e "${CYAN}Choose [1-6]: ${RESET}")" choice
 
     case "$choice" in
-        1) CRON_SCHEDULE="0 */6 * * *";  CRON_DESC="every 6 hours" ;;
-        2) CRON_SCHEDULE="0 */12 * * *"; CRON_DESC="every 12 hours" ;;
-        3)
+        1) CRON_SCHEDULE="0 2 * * *";    CRON_DESC="daily at 02:00 AM" ;;
+        2) CRON_SCHEDULE="0 */6 * * *";  CRON_DESC="every 6 hours" ;;
+        3) CRON_SCHEDULE="0 */12 * * *"; CRON_DESC="every 12 hours" ;;
+        4)
             read -rp "$(echo -e "${CYAN}Hour (0-23): ${RESET}")" hour
             read -rp "$(echo -e "${CYAN}Minute (0-59, default 0): ${RESET}")" minute
             minute="${minute:-0}"
             CRON_SCHEDULE="${minute} ${hour} * * *"
             CRON_DESC="daily at $(printf '%02d:%02d' "$hour" "$minute")"
             ;;
-        4)
+        5)
             echo "  Days: 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat"
             read -rp "$(echo -e "${CYAN}Day of week [0-6]: ${RESET}")" dow
             read -rp "$(echo -e "${CYAN}Hour (0-23): ${RESET}")" hour
@@ -64,7 +71,7 @@ pick_schedule() {
             CRON_SCHEDULE="${minute} ${hour} * * ${dow}"
             CRON_DESC="weekly (day ${dow}) at $(printf '%02d:%02d' "$hour" "$minute")"
             ;;
-        5)
+        6)
             echo "  Format: minute hour day month weekday"
             echo "  Example: 30 2 * * *  (every day at 02:30)"
             read -rp "$(echo -e "${CYAN}Cron expression: ${RESET}")" CRON_SCHEDULE
