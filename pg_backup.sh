@@ -179,11 +179,9 @@ preflight_checks() {
         ok=false
     fi
 
-    # Test DB connectivity (run as the postgres unix user to match peer auth)
-    if ! sudo -u "$DB_USER" psql \
-            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-            -c "SELECT 1;" &>/dev/null; then
-        error "Cannot connect to database '${DB_NAME}' at ${DB_HOST}:${DB_PORT} as '${DB_USER}'."
+    # Test DB connectivity via Unix socket (peer auth — no password needed)
+    if ! sudo -u "$DB_USER" psql -d "$DB_NAME" -c "SELECT 1;" &>/dev/null; then
+        error "Cannot connect to database '${DB_NAME}' as unix user '${DB_USER}'."
         ok=false
     fi
 
@@ -205,9 +203,6 @@ run_backup() {
 
     local start_time=$SECONDS
     sudo -u "$DB_USER" pg_dump \
-        -h "$DB_HOST" \
-        -p "$DB_PORT" \
-        -U "$DB_USER" \
         -F "${DUMP_FORMAT:0:1}" \
         ${PG_DUMP_EXTRA_OPTS:-} \
         "$DB_NAME" \
