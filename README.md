@@ -89,6 +89,9 @@ Pick a schedule from the menu (default is daily at 2:00 AM). The cron job gets w
 | `DUMP_FORMAT` | `custom` | `custom` works with `pg_restore`. Use `plain` for a readable SQL file. |
 | `DISCORD_WEBHOOK_URL` | _(empty)_ | Discord alert on success and failure |
 | `SLACK_WEBHOOK_URL` | _(empty)_ | Slack alert on success and failure |
+| `DISCORD_WEBHOOK_URL` | _(empty)_ | Discord alert on success and failure |
+| `TELEGRAM_BOT_TOKEN` | _(empty)_ | Telegram bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | _(empty)_ | Telegram group or channel ID (negative number for groups) |
 | `NOTIFY_EMAIL` | _(empty)_ | Email alert — needs `mailutils` installed |
 | `LOG_FILE` | `/var/log/pg_backup.log` | Leave empty to only log to stdout |
 | `LOG_RETENTION_DAYS` | `30` | Trims log entries older than this |
@@ -122,6 +125,13 @@ sudo -u postgres pg_restore \
 ---
 
 ## Notifications
+
+**Telegram** — create a bot via [@BotFather](https://t.me/BotFather) on Telegram, copy the token it gives you, then add the bot to your group. To get the group ID, add [@userinfobot](https://t.me/userinfobot) to the group and it will show the ID (it will be a negative number like `-1001234567890`).
+
+```bash
+TELEGRAM_BOT_TOKEN="123456789:AABBccDDeeFFggHH"
+TELEGRAM_CHAT_ID="-1001234567890"
+```
 
 **Discord** — go to your server, open a channel's settings, then Integrations > Webhooks > New Webhook. Copy the URL and paste it into `backup.conf`:
 

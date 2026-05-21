@@ -124,6 +124,30 @@ notify() {
             >/dev/null 2>&1 || warn "Discord notification failed"
     fi
 
+    if [[ -n "${TELEGRAM_BOT_TOKEN:-}" && -n "${TELEGRAM_CHAT_ID:-}" ]]; then
+        local tg_icon="✅"
+        [[ "$status" == "FAIL" ]] && tg_icon="❌"
+        local tg_text
+        tg_text="${tg_icon} *PG Backup ${status}* on \`$(hostname)\`"$'\n'"${message}"
+        if [[ -n "$filename" ]]; then
+            tg_text+=$'\n\n'
+            tg_text+="*File:* \`${filename}\`"$'\n'
+            tg_text+="*Size:* ${size}  |  *Time:* ${elapsed}s"$'\n'
+            tg_text+="*Stored:* ${total_count} / ${MAX_BACKUPS}  |  *Disk:* ${total_size}"
+            if [[ -n "$file_list" ]]; then
+                tg_text+=$'\n\n'"*All backups:*"$'\n'
+                tg_text+="\`\`\`"$'\n'"${file_list}""\`\`\`"
+            fi
+        fi
+        tg_text+=$'\n'"_$(date '+%Y-%m-%d %H:%M:%S')_"
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H 'Content-type: application/json' \
+            --data "$(printf '{"chat_id":"%s","text":"%s","parse_mode":"Markdown"}' \
+                "$TELEGRAM_CHAT_ID" \
+                "$(printf '%s' "$tg_text" | sed 's/"/\\"/g')")" \
+            >/dev/null 2>&1 || warn "Telegram notification failed"
+    fi
+
     if [[ -n "${NOTIFY_EMAIL:-}" ]] && command -v mail &>/dev/null; then
         echo "$message" | mail -s "[PG Backup] $status - $(hostname)" "$NOTIFY_EMAIL" \
             >/dev/null 2>&1 || warn "Email notification failed"
